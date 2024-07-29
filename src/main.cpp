@@ -23,12 +23,12 @@ pros::Motor intake1(-14);
 pros::Motor intake2(-12);
 pros::Motor    intake(8);
 
-void arcadecontrolx(double angular, double lateral, double lateralx)
+void arcadecontrolx(double angular, double vertical, double horizontal)
 {
-	leftTop.move(lateral+angular+lateralx);
-	leftBottom.move(lateral+angular-lateralx);
-	rightBottom.move(lateral-angular+lateralx);
-	rightTop.move(lateral-angular-lateralx);
+	leftTop.move(vertical+angular+horizontal);
+	leftBottom.move(vertical+angular-horizontal);
+	rightBottom.move(vertical-angular+horizontal);
+	rightTop.move(vertical-angular-horizontal);
 
 }
 // tracking wheels
@@ -52,7 +52,7 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               2 // horizontal drift is 2. If we had traction wheels, it would have been 8
 );
 
-// lateral motion controller
+// vertical motion controller
 lemlib::ControllerSettings linearController(2, // proportional gain (kP)
                                             0, // integral gain (kI)
                                             8, // derivative gain (kD)
@@ -143,8 +143,8 @@ double checkAngle(double aerror) {
     return aerror;
 }
 
-double lateralkp = 5.6;
-double lateralkd = 3.2;
+double verticalkp = 5.6;
+double verticalkd = 3.2;
 double horizontalkp=5.6;
 double horizontalkd=2.4;
 double thetakp=2;
@@ -152,19 +152,22 @@ double thetakd=4;
 
 void moveforward(double x, double y, double theta, int timeout) {
 
-    double lateralError = y-chassis.getPose().y;
-    double lateralPrevError = lateralError;
+    double verticalError = y-chassis.getPose().y;
+    double verticalPrevError = verticalError;
     double horizontalError = x-chassis.getPose().x;
     double horizontalprevError = horizontalError;
     double thetaError = checkAngle(theta-imu.get_heading());
     double thetaprevError = thetaError;
-
+    double heading = imu.get_heading();
     lemlib::Timer timer(timeout);
     
     while(!timer.isDone()) {
 
-        lateralError = y-chassis.getPose().y;
-        float lateralMtr = update(lateralkp, lateralkd, lateralError, lateralPrevError);
+	if (heading > 180) heading -= 360;
+	if (heading < - 180) heading += 360;
+	    
+        verticalError = y-chassis.getPose().y;
+        float verticalMtr = update(verticalkp, verticalkd, verticalError, verticalPrevError);
 
         horizontalError = x-chassis.getPose().x;
         float horizontalMtr = update(horizontalkp, horizontalkd, horizontalError, horizontalprevError);
@@ -172,19 +175,19 @@ void moveforward(double x, double y, double theta, int timeout) {
         thetaError = checkAngle(theta-imu.get_heading());
         float thetaMtr = update(thetakp, thetakd, thetaError, thetaprevError);
 
-        double ADlateralMtr = lateralMtr * cos(imu.get_heading() * M_PI / 180) + horizontalMtr * sin(imu.get_heading()* M_PI / 180); // Adjust based off of heading
-        double ADhorizontalMtr = lateralMtr * sin(imu.get_heading() * M_PI / 180) + horizontalMtr * cos(imu.get_heading()* M_PI / 180);
+        double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
+        double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
 
-        arcadecontrolx(thetaMtr,ADlateralMtr,ADhorizontalMtr);
+        arcadecontrolx(thetaMtr,ADverticalMtr,ADhorizontalMtr);
 
-        lateralPrevError=lateralError;
+        verticalPrevError=verticalError;
         horizontalprevError=horizontalError;
         thetaprevError=thetaError;
         pros::lcd::print(5," Horizontal %.2f",ADhorizontalMtr);
-        pros::lcd::print(6,"Lateral %.2f",ADlateralMtr);
+        pros::lcd::print(6,"vertical %.2f",ADverticalMtr);
         pros::lcd::print(7,"%.2f",thetaError);
 
-        if (fabs(lateralError) < 0.5 &&
+        if (fabs(verticalError) < 0.5 &&
             fabs(horizontalError) < 0.5 &&
             fabs(thetaError) < 0.5){
             break;
@@ -314,3 +317,5 @@ void opcontrol() {
 		pros::delay(20);                             
 	}
 }
+
+
