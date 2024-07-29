@@ -119,7 +119,7 @@ void odom(){
 }
 void initialize() {
     chassis.calibrate(); // calibrate sensors
-    pros::delay(2500);
+    pros::delay(2000);
     if (!pros::lcd::is_initialized()) pros::lcd::initialize();
     // the default rate is 50. however, if you need to change the rate, you
     // can do the following.
@@ -131,8 +131,6 @@ void initialize() {
 
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(odom);
-    pros::lcd::initialize();
-    pros::lcd::set_text(1,"nige");
 }
 double update(double kp, double kd, double error, double prevError ) {
 
@@ -145,11 +143,11 @@ double checkAngle(double aerror) {
     return aerror;
 }
 
-double lateralkp = 7;
-double lateralkd = 6;
-double horizontalkp=7;
-double horizontalkd=6;
-double thetakp=2.5;
+double lateralkp = 5.6;
+double lateralkd = 3.2;
+double horizontalkp=5.6;
+double horizontalkd=2.4;
+double thetakp=2;
 double thetakd=4;
 
 void moveforward(double x, double y, double theta, int timeout) {
@@ -175,11 +173,9 @@ void moveforward(double x, double y, double theta, int timeout) {
         float thetaMtr = update(thetakp, thetakd, thetaError, thetaprevError);
 
         double ADlateralMtr = lateralMtr * cos(imu.get_heading() * M_PI / 180) + horizontalMtr * sin(imu.get_heading()* M_PI / 180); // Adjust based off of heading
-        double ADhorizontalMtr = - lateralMtr * sin(imu.get_heading() * M_PI / 180) - horizontalMtr * cos(imu.get_heading()* M_PI / 180);
+        double ADhorizontalMtr = lateralMtr * sin(imu.get_heading() * M_PI / 180) + horizontalMtr * cos(imu.get_heading()* M_PI / 180);
 
         arcadecontrolx(thetaMtr,ADlateralMtr,ADhorizontalMtr);
-
-
 
         lateralPrevError=lateralError;
         horizontalprevError=horizontalError;
@@ -188,9 +184,9 @@ void moveforward(double x, double y, double theta, int timeout) {
         pros::lcd::print(6,"Lateral %.2f",ADlateralMtr);
         pros::lcd::print(7,"%.2f",thetaError);
 
-        if (fabs(lateralError) < 2 &&
-            fabs(horizontalError) < 2 &&
-            fabs(thetaError) < 2){
+        if (fabs(lateralError) < 0.5 &&
+            fabs(horizontalError) < 0.5 &&
+            fabs(thetaError) < 0.5){
             break;
         }
         pros::delay(20);
@@ -249,22 +245,25 @@ void conveyor(int speed){
 
 void autonomous() {
     piston.set_value(1);
-    moveforward(0,-18,0,1300);
+    moveforward(0,-18,0,1800);
     piston.set_value(0);
     pros::delay(200);
     conveyor(127);
     pros::delay(800);
     conveyor(0);
-    moveforward(10,-23,90,2500);
+    moveforward(10,-23,90,1500);
     piston.set_value(1);
     intake.move(-127); // intake
     conveyor(127);
-    moveforward(18,-23,90,2500);
-    pros::delay(550);
-    intake.move(127);
+    moveforward(17.5,-23,90,1500);
+    pros::delay(500);
     conveyor(0);
     pros::delay(200);
+    intake.move(127);
     piston.set_value(1);
+    moveforward(0,0,135,3000);
+    moveforward(24,48,90,3000);
+    
 
     
 }
