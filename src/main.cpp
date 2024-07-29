@@ -160,20 +160,20 @@ void moveforward(double x, double y, double theta, int timeout) {
     double thetaprevError = thetaError;
     double heading = imu.get_heading();
     lemlib::Timer timer(timeout);
-    
+    double verticalMtr, horizontalMtr, thetaMtr
     while(!timer.isDone()) {
 
 	if (heading > 180) heading -= 360;
 	if (heading < - 180) heading += 360;
 	    
         verticalError = y-chassis.getPose().y;
-        float verticalMtr = update(verticalkp, verticalkd, verticalError, verticalPrevError);
+        verticalMtr = update(verticalkp, verticalkd, verticalError, verticalPrevError);
 
         horizontalError = x-chassis.getPose().x;
-        float horizontalMtr = update(horizontalkp, horizontalkd, horizontalError, horizontalprevError);
+        horizontalMtr = update(horizontalkp, horizontalkd, horizontalError, horizontalprevError);
 
         thetaError = checkAngle(theta-imu.get_heading());
-        float thetaMtr = update(thetakp, thetakd, thetaError, thetaprevError);
+        thetaMtr = update(thetakp, thetakd, thetaError, thetaprevError);
 
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
         double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
