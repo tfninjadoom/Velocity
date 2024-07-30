@@ -118,8 +118,10 @@ void odom(){
     }
 }
 void initialize() {
+    leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
+    rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
     chassis.calibrate(); // calibrate sensors
-    pros::delay(2000);
+    imu.reset();
     if (!pros::lcd::is_initialized()) pros::lcd::initialize();
     // the default rate is 50. however, if you need to change the rate, you
     // can do the following.
@@ -143,12 +145,12 @@ double checkAngle(double aerror) {
     return aerror;
 }
 
-double verticalkp = 5.6;
-double verticalkd = 3.2;
-double horizontalkp=5.6;
-double horizontalkd=2.4;
+double verticalkp = 8;
+double verticalkd = 8;
+double horizontalkp=5.8;
+double horizontalkd=12;
 double thetakp=2;
-double thetakd=4;
+double thetakd=0;
 
 void moveforward(double x, double y, double theta, int timeout) {
 
@@ -160,9 +162,9 @@ void moveforward(double x, double y, double theta, int timeout) {
     double thetaprevError = thetaError;
     double heading = imu.get_heading();
     lemlib::Timer timer(timeout);
-    double verticalMtr, horizontalMtr, thetaMtr
+    double verticalMtr, horizontalMtr, thetaMtr;
     while(!timer.isDone()) {
-
+        heading = imu.get_heading();
 	if (heading > 180) heading -= 360;
 	if (heading < - 180) heading += 360;
 	    
@@ -178,18 +180,19 @@ void moveforward(double x, double y, double theta, int timeout) {
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
         double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
 
-        arcadecontrolx(thetaMtr,ADverticalMtr,ADhorizontalMtr);
+        // arcadecontrolx(thetaMtr,ADverticalMtr,ADhorizontalMtr);
 
         verticalPrevError=verticalError;
         horizontalprevError=horizontalError;
         thetaprevError=thetaError;
-        pros::lcd::print(5," Horizontal %.2f",ADhorizontalMtr);
-        pros::lcd::print(6,"vertical %.2f",ADverticalMtr);
-        pros::lcd::print(7,"%.2f",thetaError);
+        pros::lcd::print(5," Horizontal %.2f",horizontalMtr);
+        pros::lcd::print(6,"vertical %.2f",verticalMtr);
+        pros::lcd::print(7,"%.2f",heading);
+        pros::lcd::print(4,"error %.2f", thetaMtr);
 
-        if (fabs(verticalError) < 0.5 &&
-            fabs(horizontalError) < 0.5 &&
-            fabs(thetaError) < 0.5){
+        if (fabs(verticalError) < 1 &&
+            fabs(horizontalError) < 1 &&
+            fabs(thetaError) < 1){
             break;
         }
         pros::delay(20);
@@ -247,26 +250,30 @@ void conveyor(int speed){
 }
 
 void autonomous() {
-    piston.set_value(1);
-    moveforward(0,-18,0,1800);
-    piston.set_value(0);
-    pros::delay(200);
-    conveyor(127);
-    pros::delay(800);
-    conveyor(0);
-    moveforward(10,-23,90,1500);
-    piston.set_value(1);
-    intake.move(-127); // intake
-    conveyor(127);
-    moveforward(17.5,-23,90,1500);
-    pros::delay(500);
-    conveyor(0);
-    pros::delay(200);
-    intake.move(127);
-    piston.set_value(1);
-    moveforward(0,0,135,3000);
-    moveforward(24,48,90,3000);
-    
+    // piston.set_value(1);
+    // moveforward(0,-18,0,1800);
+    // piston.set_value(0);
+    // pros::delay(200);
+    // conveyor(127);
+    // pros::delay(800);
+    // conveyor(0);
+    // moveforward(10,-23,90,1500);
+    // piston.set_value(1);
+    // intake.move(-127); // intake
+    // conveyor(127);
+    // moveforward(17.5,-23,90,1500);
+    // pros::delay(500);
+    // conveyor(0);
+    // pros::delay(200);
+    // intake.move(127);
+    // piston.set_value(1);
+    // moveforward(0,0,135,3000);
+    // moveforward(24,48,90,3000);
+    moveforward(0,24,0,30000);
+    // moveforward(0,0,0,300000);
+    // moveforward(0,24,0,30000);
+    // moveforward(0,-24,90,30000);
+    // moveforward(0,0,0,30000);
 
     
 }
@@ -317,5 +324,4 @@ void opcontrol() {
 		pros::delay(20);                             
 	}
 }
-
 
