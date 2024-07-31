@@ -91,9 +91,9 @@ lemlib::ControllerSettings angularController(1, // proportional gain (kP)
 );
 
 // sensors for odometry
-lemlib::OdomSensors sensors(nullptr, // vertical tracking wheel
-                            nullptr, // vertical tracking wheel 2
-                            nullptr, // horizontal tracking wheel
+lemlib::OdomSensors sensors(vertical, // vertical tracking wheel
+                            vertical2, // vertical tracking wheel 2
+                            horizontal, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
                             &imu // inertial sensor
 );
