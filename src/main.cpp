@@ -303,10 +303,14 @@ void opcontrol() {
 
         }
 
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
+		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
 			intake1.move(0);
 		    intake2.move(0);
 		    intake.move(0);
+        }
+
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
+			autonomous();
         }
 
 		pros::delay(20);                             
