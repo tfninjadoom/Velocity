@@ -276,7 +276,7 @@ double horizKd = 0.;
 double thetaKp = 2;
 double thetaKd = 0;
 
-void moveforward(double x, double y, double theta, int timeout) {
+void moveForward(double x, double y, double theta, int timeout) {
 
     double verticalError = y - chassis.getPose().y;
     double verticalPrevError = verticalError;
@@ -332,32 +332,32 @@ void moveforward(double x, double y, double theta, int timeout) {
 void forwardTest() {
     chassis.setPose(-120, 59.75, 270);
     
-    // moveforward(0,24,0,30000);
+    moveForward(0,0,0,30000);
 }
 
 void redSoloAWP() {
     piston.set_value(1);
-    moveforward(0,-18,0,1800);
+    moveForward(0,-18,0,1800);
     piston.set_value(0);
     pros::delay(200);
     conveyor(127);
     pros::delay(800);
     conveyor(0);
-    moveforward(10,-23,90,1500);
+    moveForward(10,-23,90,1500);
     piston.set_value(1);
     intake.move(-127); // intake
     conveyor(127);
-    moveforward(17.5,-23,90,1500);
+    moveForward(17.5,-23,90,1500);
     pros::delay(500);
     conveyor(0);
     pros::delay(200);
     intake.move(127);
     piston.set_value(1);
-    moveforward(0,0,135,3000);
-    moveforward(24,48,90,3000);
-    moveforward(0,24,0,30000);
-    moveforward(0,0,0,300000);
-    moveforward(0,24,0,30000);
-    moveforward(0,-24,90,30000);
-    moveforward(0,0,0,30000);
+    moveForward(0,0,135,3000);
+    moveForward(24,48,90,3000);
+    moveForward(0,24,0,30000);
+    moveForward(0,0,0,300000);
+    moveForward(0,24,0,30000);
+    moveForward(0,-24,90,30000);
+    moveForward(0,0,0,30000);
 }
