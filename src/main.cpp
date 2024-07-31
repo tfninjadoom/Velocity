@@ -125,8 +125,8 @@ void odom() {
 void initialize() {
     leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
     rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
-    chassis.calibrate(); // calibrate sensors
     imu.reset();
+    chassis.calibrate(); // calibrate sensors
     if (!pros::lcd::is_initialized()) pros::lcd::initialize();
     // the default rate is 50. however, if you need to change the rate, you
     // can do the following.
@@ -282,15 +282,15 @@ void moveforward(double x, double y, double theta, int timeout) {
     double verticalPrevError = verticalError;
     double horizontalError = x - chassis.getPose().x;
     double horizontalPrevError = horizontalError;
-    double thetaError = checkAngle(theta - imu.get_heading());
+    double thetaError = checkAngle(theta - chassis.getPose().theta);
     double thetaPrevError = thetaError;
-    double heading = imu.get_heading();
+    double heading = chassis.getPose().theta;
 
     lemlib::Timer timer(timeout);
     double verticalMtr, horizontalMtr, thetaMtr = 0;
 
     while(!timer.isDone()) {
-        heading = imu.get_heading();
+        heading = chassis.getPose().theta;
 	    if (heading > 180)  heading -= 360;
 	    if (heading < -180) heading += 360;
 	    
@@ -300,7 +300,7 @@ void moveforward(double x, double y, double theta, int timeout) {
         horizontalError = x - chassis.getPose().x;
         horizontalMtr = updatePD(horizKp, horizKd, horizontalError, horizontalPrevError);
 
-        thetaError = checkAngle(theta-imu.get_heading());
+        thetaError = checkAngle(theta-chassis.getPose().theta);
         thetaMtr = updatePD(thetaKp, thetaKd, thetaError, thetaPrevError);
 
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
@@ -330,7 +330,6 @@ void moveforward(double x, double y, double theta, int timeout) {
 // PATHS
 
 void forwardTest() {
-    // imu.set_heading(270.0);
     chassis.setPose(-120, 59.75, 270);
     
     // moveforward(0,24,0,30000);
