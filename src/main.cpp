@@ -3,9 +3,18 @@
 #include "lemlib/timer.hpp"
 
 // forward-declaring auton funcs
-void forwardTest();
 void redSoloAWP();
+void blueSoloAWP();
+void oldRedSoloAWP();
+void PDtune();
 
+// PID constants
+double vertKp = 0;
+double vertKd = 0;
+double horizKp = 0;
+double horizKd = 0;
+double thetaKp = 1.3;
+double thetaKd = 0;
 
 // controller
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
@@ -21,7 +30,7 @@ pros::Motor leftTop(19);
 pros::Motor leftBottom(16); 
 pros::Motor rightTop(-20);
 pros::Motor rightBottom(-17);
-pros::ADIDigitalOut piston ('A');
+pros::ADIDigitalOut clamp ('A');
 
 pros::Motor intake1(-14);
 pros::Motor intake2(-12);
@@ -43,10 +52,10 @@ pros::Rotation horizontalEnc(-21);
 pros::Rotation verticalEnc(-11);
 pros::Rotation verticalEnc2(18);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
-lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, 3.5);
+lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, 2.5);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
-lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, 6.75);
-lemlib::TrackingWheel vertical2(&verticalEnc2, lemlib::Omniwheel::NEW_275, -6.75);
+lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, 6.5);
+lemlib::TrackingWheel vertical2(&verticalEnc2, lemlib::Omniwheel::NEW_275, -6.5);
 
 // drivetrain settings
 lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
@@ -82,9 +91,9 @@ lemlib::ControllerSettings angularController(1, // proportional gain (kP)
 );
 
 // sensors for odometry
-lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
-                            &vertical2, // vertical tracking wheel 2
-                            &horizontal, // horizontal tracking wheel
+lemlib::OdomSensors sensors(nullptr, // vertical tracking wheel
+                            nullptr, // vertical tracking wheel 2
+                            nullptr, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
                             &imu // inertial sensor
 );
@@ -116,6 +125,11 @@ void odom() {
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
         pros::lcd::print(1, "Y: %.2f", chassis.getPose().y); // y
         pros::lcd::print(2, "Theta: %.2f", chassis.getPose().theta); // heading
+
+        // printing PD constants
+        pros::lcd::print(4, "thetaKp: %.2f", thetaKp); // thetaKp
+        pros::lcd::print(5, "thetaKd: %.2f", thetaKd); // thetaKd
+
         // log position telemetry
         // lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
         // delay to save resources
@@ -123,8 +137,6 @@ void odom() {
     }
 }
 void initialize() {
-    leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
-    rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
     imu.reset();
     chassis.calibrate(); // calibrate sensors
     if (!pros::lcd::is_initialized()) pros::lcd::initialize();
@@ -148,7 +160,10 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {}
+void competition_initialize() {
+    leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
+    rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
+}
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -185,13 +200,18 @@ void competition_initialize() {}
  */
 
 void autonomous() {
-    forwardTest();
-    //redSoloAWP();
+    leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+    rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+
+    // redSoloAWP();
+    //blueSoloAWP();
+    PDtune();
 }
 
 void opcontrol() {
     // controller
     pros::Controller master(pros::E_CONTROLLER_MASTER);
+    bool tuningPD = true;
 
     // loop to continuously updatePD motors
     while (true) {
@@ -227,11 +247,11 @@ void opcontrol() {
 		}
 
 		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-           piston.set_value(true);
+            clamp.set_value(true);
         }
 
         if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
-			piston.set_value(false);
+		    clamp.set_value(false);
 
         }
 
@@ -243,6 +263,32 @@ void opcontrol() {
 
         if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
 			autonomous();
+        }
+
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPD) {
+			redSoloAWP();
+        }
+
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPD) {
+			blueSoloAWP();
+        }
+
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPD) {
+			tuningPD = true;
+        } else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPD) {
+			tuningPD = false;
+        }
+
+        if (tuningPD && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
+            thetaKp += 0.05;
+        }
+
+        if (tuningPD && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
+            thetaKp -= 0.05;
+        }
+
+        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+            chassis.setPose(0,0,0);
         }
 
 		pros::delay(20);                             
@@ -260,7 +306,7 @@ void conveyor(int speed){
 }
 
 double updatePD(double Kp, double Kd, double error, double prevError) {
-    return Kp*error + Kd*(error-prevError);
+    return Kp*error + Kd*(error - prevError);
 }
 
 double checkAngle(double angError) {
@@ -269,14 +315,7 @@ double checkAngle(double angError) {
     return angError;
 }
 
-double vertKp = 8;
-double vertKd = 0.;
-double horizKp = 5.8;
-double horizKd = 0.;
-double thetaKp = 2;
-double thetaKd = 0;
-
-void moveForward(double x, double y, double theta, int timeout) {
+void moveTo(const double& x, const double& y, const double& theta, const int& timeout) {
 
     double verticalError = y - chassis.getPose().y;
     double verticalPrevError = verticalError;
@@ -306,7 +345,7 @@ void moveForward(double x, double y, double theta, int timeout) {
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
         double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
 
-        // holonomicDrive(thetaMtr,ADverticalMtr,ADhorizontalMtr);
+        holonomicDrive(thetaMtr,ADverticalMtr,ADhorizontalMtr);
 
         verticalPrevError = verticalError;
         horizontalPrevError = horizontalError;
@@ -327,37 +366,53 @@ void moveForward(double x, double y, double theta, int timeout) {
     holonomicDrive(0,0,0);
 }
 
+// void moveTo1(void* x, void* y, void* theta, void* timeout) {
+//     pros::Task move_task(moveTo, (void*)x, (void*)y, (void*)theta, (int*)timeout);
+// }
+
 // PATHS
 
-void forwardTest() {
+void redSoloAWP() {
     chassis.setPose(-120, 59.75, 270);
-    
-    moveForward(0,0,0,30000);
+    clamp.set_value(false);
+
+    moveTo(-104, 60, 270, 1500);
+    clamp.set_value(true);
 }
 
-void redSoloAWP() {
-    piston.set_value(1);
-    moveForward(0,-18,0,1800);
-    piston.set_value(0);
+void blueSoloAWP() {
+    chassis.setPose(0, 0, 0);
+}
+
+void oldRedSoloAWP() {
+    clamp.set_value(1);
+    moveTo(0,-18,0,1800);
+    clamp.set_value(0);
     pros::delay(200);
     conveyor(127);
     pros::delay(800);
     conveyor(0);
-    moveForward(10,-23,90,1500);
-    piston.set_value(1);
+    moveTo(10,-23,90,1500);
+    clamp.set_value(1);
     intake.move(-127); // intake
     conveyor(127);
-    moveForward(17.5,-23,90,1500);
+    moveTo(17.5,-23,90,1500);
     pros::delay(500);
     conveyor(0);
     pros::delay(200);
     intake.move(127);
-    piston.set_value(1);
-    moveForward(0,0,135,3000);
-    moveForward(24,48,90,3000);
-    moveForward(0,24,0,30000);
-    moveForward(0,0,0,300000);
-    moveForward(0,24,0,30000);
-    moveForward(0,-24,90,30000);
-    moveForward(0,0,0,30000);
+    clamp.set_value(1);
+    moveTo(0,0,135,3000);
+    moveTo(24,48,90,3000);
+    moveTo(0,24,0,30000);
+    moveTo(0,0,0,300000);
+    moveTo(0,24,0,30000);
+    moveTo(0,-24,90,30000);
+    moveTo(0,0,0,30000);
+}
+
+void PDtune() {
+    chassis.setPose(0,0,0);
+    pros::delay(20);
+    moveTo(0, 0, 90, 5000);
 }
