@@ -2,6 +2,10 @@
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
 
+// forward-declaring auton funcs
+void forwardTest();
+void redSoloAWP();
+
 
 // controller
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
@@ -21,9 +25,9 @@ pros::ADIDigitalOut piston ('A');
 
 pros::Motor intake1(-14);
 pros::Motor intake2(-12);
-pros::Motor    intake(8);
+pros::Motor intake(8);
 
-void arcadecontrolx(double angular, double vertical, double horizontal)
+void holonomicDrive(double angular, double vertical, double horizontal)
 {
 	leftTop.move(vertical+angular+horizontal);
 	leftBottom.move(vertical+angular-horizontal);
@@ -31,17 +35,18 @@ void arcadecontrolx(double angular, double vertical, double horizontal)
 	rightTop.move(vertical-angular-horizontal);
 
 }
+
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 pros::Rotation horizontalEnc(-21);
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
 pros::Rotation verticalEnc(-11);
-pros::Rotation verticalEn2c(18);
+pros::Rotation verticalEnc2(18);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
 lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, 3.5);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
 lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, 6.75);
-lemlib::TrackingWheel vertical2(&verticalEn2c, lemlib::Omniwheel::NEW_275, -6.75);
+lemlib::TrackingWheel vertical2(&verticalEnc2, lemlib::Omniwheel::NEW_275, -6.75);
 
 // drivetrain settings
 lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
@@ -78,7 +83,7 @@ lemlib::ControllerSettings angularController(1, // proportional gain (kP)
 
 // sensors for odometry
 lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
-                            &vertical2, // vertical tracking wheel 2, set to nullptr as we don't have a second one
+                            &vertical2, // vertical tracking wheel 2
                             &horizontal, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
                             &imu // inertial sensor
@@ -91,8 +96,8 @@ lemlib::ExpoDriveCurve throttleCurve(3, // joystick deadband out of 127
 );
 
 // input curve for steer input during driver control
-lemlib::ExpoDriveCurve steerCurve(3, // joystick deadband out of 127
-                                  10, // minimum output where drivetrain will move out of 127
+lemlib::ExpoDriveCurve steerCurve(3,    // joystick deadband out of 127
+                                  10,   // minimum output where drivetrain will move out of 127
                                   1.019 // expo curve gain
 );
 
@@ -105,7 +110,7 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
  * All other competition modes are blocked by initialize; it is recommended
  * to keep execution time for this mode under a few seconds.
  */
-void odom(){
+void odom() {
     while (true) {
         // print robot location to the brain screen
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
@@ -134,57 +139,59 @@ void initialize() {
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(odom);
 }
-double update(double kp, double kd, double error, double prevError ) {
 
-    return kp*error+kd*(error-prevError);
-
-}
-double checkAngle(double aerror) {
-    if (aerror > 180) aerror -= 360;
-    else if (aerror < - 180) aerror += 360;
-    return aerror;
+double updatePD(double Kp, double Kd, double error, double prevError) {
+    return Kp*error + Kd*(error-prevError);
 }
 
-double verticalkp = 8;
-double verticalkd = 8;
-double horizontalkp=5.8;
-double horizontalkd=12;
-double thetakp=2;
-double thetakd=0;
+double checkAngle(double angError) {
+    if (angError > 180) angError -= 360;
+    else if (angError < - 180) angError += 360;
+    return angError;
+}
+
+double vertKp = 8;
+double vertKd = 0.;
+double horizKp = 5.8;
+double horizKd = 0.;
+double thetaKp = 2;
+double thetaKd = 0;
 
 void moveforward(double x, double y, double theta, int timeout) {
 
-    double verticalError = y-chassis.getPose().y;
+    double verticalError = y - chassis.getPose().y;
     double verticalPrevError = verticalError;
-    double horizontalError = x-chassis.getPose().x;
-    double horizontalprevError = horizontalError;
-    double thetaError = checkAngle(theta-imu.get_heading());
-    double thetaprevError = thetaError;
+    double horizontalError = x - chassis.getPose().x;
+    double horizontalPrevError = horizontalError;
+    double thetaError = checkAngle(theta - imu.get_heading());
+    double thetaPrevError = thetaError;
     double heading = imu.get_heading();
+
     lemlib::Timer timer(timeout);
-    double verticalMtr, horizontalMtr, thetaMtr;
+    double verticalMtr, horizontalMtr, thetaMtr = 0;
+
     while(!timer.isDone()) {
         heading = imu.get_heading();
-	if (heading > 180) heading -= 360;
-	if (heading < - 180) heading += 360;
+	    if (heading > 180)  heading -= 360;
+	    if (heading < -180) heading += 360;
 	    
-        verticalError = y-chassis.getPose().y;
-        verticalMtr = update(verticalkp, verticalkd, verticalError, verticalPrevError);
+        verticalError = y - chassis.getPose().y;
+        verticalMtr = updatePD(vertKp, vertKd, verticalError, verticalPrevError);
 
-        horizontalError = x-chassis.getPose().x;
-        horizontalMtr = update(horizontalkp, horizontalkd, horizontalError, horizontalprevError);
+        horizontalError = x - chassis.getPose().x;
+        horizontalMtr = updatePD(horizKp, horizKd, horizontalError, horizontalPrevError);
 
         thetaError = checkAngle(theta-imu.get_heading());
-        thetaMtr = update(thetakp, thetakd, thetaError, thetaprevError);
+        thetaMtr = updatePD(thetaKp, thetaKd, thetaError, thetaPrevError);
 
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
         double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
 
-        // arcadecontrolx(thetaMtr,ADverticalMtr,ADhorizontalMtr);
+        // holonomicDrive(thetaMtr,ADverticalMtr,ADhorizontalMtr);
 
-        verticalPrevError=verticalError;
-        horizontalprevError=horizontalError;
-        thetaprevError=thetaError;
+        verticalPrevError = verticalError;
+        horizontalPrevError = horizontalError;
+        thetaPrevError = thetaError;
         pros::lcd::print(5," Horizontal %.2f",horizontalMtr);
         pros::lcd::print(6,"vertical %.2f",verticalMtr);
         pros::lcd::print(7,"%.2f",heading);
@@ -197,7 +204,8 @@ void moveforward(double x, double y, double theta, int timeout) {
         }
         pros::delay(20);
     }
-    arcadecontrolx(0,0,0);
+
+    holonomicDrive(0,0,0);
 }
 
 /**
@@ -244,45 +252,16 @@ void competition_initialize() {}
     pros::lcd::print(4, "pure pursuit finished!");
  */
 
-void conveyor(int speed){
-    intake1.move(-speed);
-    intake2.move(speed);
-}
-
 void autonomous() {
-    // piston.set_value(1);
-    // moveforward(0,-18,0,1800);
-    // piston.set_value(0);
-    // pros::delay(200);
-    // conveyor(127);
-    // pros::delay(800);
-    // conveyor(0);
-    // moveforward(10,-23,90,1500);
-    // piston.set_value(1);
-    // intake.move(-127); // intake
-    // conveyor(127);
-    // moveforward(17.5,-23,90,1500);
-    // pros::delay(500);
-    // conveyor(0);
-    // pros::delay(200);
-    // intake.move(127);
-    // piston.set_value(1);
-    // moveforward(0,0,135,3000);
-    // moveforward(24,48,90,3000);
-    moveforward(0,24,0,30000);
-    // moveforward(0,0,0,300000);
-    // moveforward(0,24,0,30000);
-    // moveforward(0,-24,90,30000);
-    // moveforward(0,0,0,30000);
-
-    
+    forwardTest();
+    //redSoloAWP();
 }
 
 void opcontrol() {
     // controller
-    	pros::Controller master(pros::E_CONTROLLER_MASTER);
+    pros::Controller master(pros::E_CONTROLLER_MASTER);
 
-    // loop to continuously update motors
+    // loop to continuously updatePD motors
     while (true) {
 		bool r1pressed;
       	bool r2pressed;
@@ -293,35 +272,87 @@ void opcontrol() {
 		double left = master.get_analog(ANALOG_LEFT_Y);
 	  	double right = master.get_analog(ANALOG_RIGHT_X);
 	  	double rightx = master.get_analog(ANALOG_LEFT_X);
-		arcadecontrolx(right, left, rightx);
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) {
-           intake1.move(127);
-		   intake2.move(-127);
+		holonomicDrive(right, left, rightx);
+
+		if      (master.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
+        {
+            intake1.move(127);
+		    intake2.move(-127);
 		    intake.move(127);
-      }else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+        } 
+        else if (master.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
+        {
 			intake1.move(-127);
-		   intake2.move(127);
+		    intake2.move(127);
 		    intake.move(-127);
 
-        }  else {
+        } 
+        else 
+        {
 			intake1.move(0);
-		   intake2.move(0);
+		    intake2.move(0);
 		    intake.move(0);
 		}
+
 		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
            piston.set_value(true);
         }
-      if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
+
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
 			piston.set_value(false);
 
-        }          
+        }
+
 		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
 			intake1.move(0);
-		   intake2.move(0);
+		    intake2.move(0);
 		    intake.move(0);
+        }
 
-        }   
 		pros::delay(20);                             
 	}
 }
 
+
+//------------------------------------------ AUTONS ------------------------------------------------------//
+
+// UTILS
+
+void conveyor(int speed){
+    intake1.move(-speed);
+    intake2.move(speed);
+}
+
+
+// PATHS
+
+void forwardTest() {
+    moveforward(0,24,0,30000);
+}
+
+void redSoloAWP() {
+    piston.set_value(1);
+    moveforward(0,-18,0,1800);
+    piston.set_value(0);
+    pros::delay(200);
+    conveyor(127);
+    pros::delay(800);
+    conveyor(0);
+    moveforward(10,-23,90,1500);
+    piston.set_value(1);
+    intake.move(-127); // intake
+    conveyor(127);
+    moveforward(17.5,-23,90,1500);
+    pros::delay(500);
+    conveyor(0);
+    pros::delay(200);
+    intake.move(127);
+    piston.set_value(1);
+    moveforward(0,0,135,3000);
+    moveforward(24,48,90,3000);
+    moveforward(0,24,0,30000);
+    moveforward(0,0,0,300000);
+    moveforward(0,24,0,30000);
+    moveforward(0,-24,90,30000);
+    moveforward(0,0,0,30000);
+}
