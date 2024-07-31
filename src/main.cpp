@@ -62,8 +62,8 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               &rightMotors, // right motor group
                               10, // 10 inch track width
                               lemlib::Omniwheel::NEW_4, // using new 4" omnis
-                              360, // drivetrain rpm is 360
-                              2 // horizontal drift is 2. If we had traction wheels, it would have been 8
+                              200, // drivetrain rpm is 360
+                              5 // horizontal drift: 2 for all-omni tank drive, 8 for omni-traction tank drive, 5 is in between (x-drive)
 );
 
 // vertical motion controller
