@@ -115,7 +115,7 @@ void odom() {
         // print robot location to the brain screen
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
         pros::lcd::print(1, "Y: %.2f", chassis.getPose().y); // y
-        pros::lcd::print(2, "Theta: %.2f", imu.get_heading()); // heading
+        pros::lcd::print(2, "Theta: %.2f", chassis.getPose().theta); // heading
         // log position telemetry
         // lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
         // delay to save resources
@@ -138,74 +138,6 @@ void initialize() {
 
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(odom);
-}
-
-double updatePD(double Kp, double Kd, double error, double prevError) {
-    return Kp*error + Kd*(error-prevError);
-}
-
-double checkAngle(double angError) {
-    if (angError > 180) angError -= 360;
-    else if (angError < - 180) angError += 360;
-    return angError;
-}
-
-double vertKp = 8;
-double vertKd = 0.;
-double horizKp = 5.8;
-double horizKd = 0.;
-double thetaKp = 2;
-double thetaKd = 0;
-
-void moveforward(double x, double y, double theta, int timeout) {
-
-    double verticalError = y - chassis.getPose().y;
-    double verticalPrevError = verticalError;
-    double horizontalError = x - chassis.getPose().x;
-    double horizontalPrevError = horizontalError;
-    double thetaError = checkAngle(theta - imu.get_heading());
-    double thetaPrevError = thetaError;
-    double heading = imu.get_heading();
-
-    lemlib::Timer timer(timeout);
-    double verticalMtr, horizontalMtr, thetaMtr = 0;
-
-    while(!timer.isDone()) {
-        heading = imu.get_heading();
-	    if (heading > 180)  heading -= 360;
-	    if (heading < -180) heading += 360;
-	    
-        verticalError = y - chassis.getPose().y;
-        verticalMtr = updatePD(vertKp, vertKd, verticalError, verticalPrevError);
-
-        horizontalError = x - chassis.getPose().x;
-        horizontalMtr = updatePD(horizKp, horizKd, horizontalError, horizontalPrevError);
-
-        thetaError = checkAngle(theta-imu.get_heading());
-        thetaMtr = updatePD(thetaKp, thetaKd, thetaError, thetaPrevError);
-
-        double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
-        double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
-
-        // holonomicDrive(thetaMtr,ADverticalMtr,ADhorizontalMtr);
-
-        verticalPrevError = verticalError;
-        horizontalPrevError = horizontalError;
-        thetaPrevError = thetaError;
-        pros::lcd::print(5," Horizontal %.2f",horizontalMtr);
-        pros::lcd::print(6,"vertical %.2f",verticalMtr);
-        pros::lcd::print(7,"%.2f",heading);
-        pros::lcd::print(4,"error %.2f", thetaMtr);
-
-        if (fabs(verticalError) < 1 &&
-            fabs(horizontalError) < 1 &&
-            fabs(thetaError) < 1){
-            break;
-        }
-        pros::delay(20);
-    }
-
-    holonomicDrive(0,0,0);
 }
 
 /**
@@ -327,11 +259,81 @@ void conveyor(int speed){
     intake2.move(speed);
 }
 
+double updatePD(double Kp, double Kd, double error, double prevError) {
+    return Kp*error + Kd*(error-prevError);
+}
+
+double checkAngle(double angError) {
+    if (angError > 180) angError -= 360;
+    else if (angError < - 180) angError += 360;
+    return angError;
+}
+
+double vertKp = 8;
+double vertKd = 0.;
+double horizKp = 5.8;
+double horizKd = 0.;
+double thetaKp = 2;
+double thetaKd = 0;
+
+void moveforward(double x, double y, double theta, int timeout) {
+
+    double verticalError = y - chassis.getPose().y;
+    double verticalPrevError = verticalError;
+    double horizontalError = x - chassis.getPose().x;
+    double horizontalPrevError = horizontalError;
+    double thetaError = checkAngle(theta - imu.get_heading());
+    double thetaPrevError = thetaError;
+    double heading = imu.get_heading();
+
+    lemlib::Timer timer(timeout);
+    double verticalMtr, horizontalMtr, thetaMtr = 0;
+
+    while(!timer.isDone()) {
+        heading = imu.get_heading();
+	    if (heading > 180)  heading -= 360;
+	    if (heading < -180) heading += 360;
+	    
+        verticalError = y - chassis.getPose().y;
+        verticalMtr = updatePD(vertKp, vertKd, verticalError, verticalPrevError);
+
+        horizontalError = x - chassis.getPose().x;
+        horizontalMtr = updatePD(horizKp, horizKd, horizontalError, horizontalPrevError);
+
+        thetaError = checkAngle(theta-imu.get_heading());
+        thetaMtr = updatePD(thetaKp, thetaKd, thetaError, thetaPrevError);
+
+        double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
+        double ADhorizontalMtr = -verticalMtr * sin(heading * M_PI / 180) + horizontalMtr * cos(heading * M_PI / 180);
+
+        // holonomicDrive(thetaMtr,ADverticalMtr,ADhorizontalMtr);
+
+        verticalPrevError = verticalError;
+        horizontalPrevError = horizontalError;
+        thetaPrevError = thetaError;
+        // pros::lcd::print(5," Horizontal %.2f",horizontalMtr);
+        // pros::lcd::print(6,"vertical %.2f",verticalMtr);
+        // pros::lcd::print(7,"%.2f",heading);
+        // pros::lcd::print(4,"error %.2f", thetaMtr);
+
+        if (fabs(verticalError) < 1 &&
+            fabs(horizontalError) < 1 &&
+            fabs(thetaError) < 1){
+            break;
+        }
+        pros::delay(20);
+    }
+
+    holonomicDrive(0,0,0);
+}
 
 // PATHS
 
 void forwardTest() {
-    moveforward(0,24,0,30000);
+    // imu.set_heading(270.0);
+    chassis.setPose(-120, 59.75, 270);
+    
+    // moveforward(0,24,0,30000);
 }
 
 void redSoloAWP() {
