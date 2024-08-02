@@ -90,7 +90,7 @@ lemlib::ControllerSettings angularController(1, // proportional gain (kP)
                                              0 // maximum acceleration (slew)
 );
 
-// sensors for odometry
+// sensors for telemetryetry
 lemlib::OdomSensors sensors(nullptr, // vertical tracking wheel
                             nullptr, // vertical tracking wheel 2
                             nullptr, // horizontal tracking wheel
@@ -119,7 +119,7 @@ lemlib::Chassis chassis(drivetrain, linearController, angularController, sensors
  * All other competition modes are blocked by initialize; it is recommended
  * to keep execution time for this mode under a few seconds.
  */
-void odom() {
+void telemetry() {
     while (true) {
         // print robot location to the brain screen
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
@@ -149,7 +149,7 @@ void initialize() {
     // works, refer to the fmtlib docs
 
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
-    pros::Task screenTask(odom);
+    pros::Task screenTask(telemetry);
 }
 
 /**
