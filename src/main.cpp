@@ -124,7 +124,7 @@ void telemetry() {
         // print robot location to the brain screen
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
         pros::lcd::print(1, "Y: %.2f", chassis.getPose().y); // y
-        pros::lcd::print(2, "Theta: %.2f", chassis.getPose().theta); // heading
+        pros::lcd::print(2, "Theta: %.2f", imu.get_heading()); // heading
 
         // printing PD constants
         pros::lcd::print(4, "thetaKp: %.2f", thetaKp); // thetaKp
@@ -290,6 +290,7 @@ void opcontrol() {
         }
 
         if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+            imu.set_heading(0);
             chassis.setPose(0,0,0);
         }
 
@@ -323,15 +324,15 @@ void moveTo(const double& x, const double& y, const double& theta, const int& ti
     double verticalPrevError = verticalError;
     double horizontalError = x - chassis.getPose().x;
     double horizontalPrevError = horizontalError;
-    double thetaError = checkAngle(theta - chassis.getPose().theta);
+    double thetaError = checkAngle(theta - imu.get_heading());
     double thetaPrevError = thetaError;
-    double heading = chassis.getPose().theta;
+    double heading = imu.get_heading();
 
     lemlib::Timer timer(timeout);
     double verticalMtr, horizontalMtr, thetaMtr = 0;
 
     while(!timer.isDone()) {
-        heading = chassis.getPose().theta;
+        heading = imu.get_heading();
 	    if (heading > 180)  heading -= 360;
 	    if (heading < -180) heading += 360;
 	    
@@ -341,7 +342,7 @@ void moveTo(const double& x, const double& y, const double& theta, const int& ti
         horizontalError = x - chassis.getPose().x;
         horizontalMtr = updatePD(horizKp, horizKd, horizontalError, horizontalPrevError);
 
-        thetaError = checkAngle(theta-chassis.getPose().theta);
+        thetaError = checkAngle(theta-imu.get_heading());
         thetaMtr = updatePD(thetaKp, thetaKd, thetaError, thetaPrevError);
 
         double ADverticalMtr = verticalMtr * cos(heading * M_PI / 180) + horizontalMtr * sin(heading * M_PI / 180); // Adjust based off of heading
@@ -375,6 +376,7 @@ void moveTo(const double& x, const double& y, const double& theta, const int& ti
 // PATHS
 
 void redSoloAWP() {
+    imu.set_heading(270);
     chassis.setPose(-120, 59.75, 270);
     clamp.set_value(false);
 
@@ -383,6 +385,7 @@ void redSoloAWP() {
 }
 
 void blueSoloAWP() {
+    imu.set_heading(0);
     chassis.setPose(0, 0, 0);
 }
 
@@ -414,6 +417,7 @@ void oldRedSoloAWP() {
 }
 
 void PDtune() {
+    imu.set_heading(0);
     chassis.setPose(0,0,0);
     pros::delay(20);
     moveTo(0, 0, 90, 5000);
