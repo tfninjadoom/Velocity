@@ -62,7 +62,7 @@ lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               &rightMotors, // right motor group
                               15, // 15 inch track width
                               lemlib::Omniwheel::NEW_4, // using new 4" omnis
-                              200, // drivetrain rpm is 360
+                              200, // drivetrain rpm is 200
                               5 // horizontal drift: 2 for all-omni tank drive, 8 for omni-traction tank drive, 5 is in between (x-drive)
 );
 
@@ -92,7 +92,7 @@ lemlib::ControllerSettings angularController(1, // proportional gain (kP)
 
 // sensors for odometry
 lemlib::OdomSensors sensors(&vertical, // vertical tracking wheel
-                            &vertical2, // vertical tracking wheel 2
+                            nullptr, // vertical tracking wheel 2
                             &horizontal, // horizontal tracking wheel
                             nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
                             &imu // inertial sensor
@@ -134,6 +134,8 @@ void telemetry() {
         // lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
         // delay to save resources
         pros::delay(50);
+
+         
     }
 }
 void initialize() {
