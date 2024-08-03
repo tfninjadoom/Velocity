@@ -13,7 +13,7 @@ double vertKp = 0;
 double vertKd = 0;
 double horizKp = 0;
 double horizKd = 0;
-double thetaKp = 1.3;
+double thetaKp = 1.6;
 double thetaKd = 0;
 
 // controller
