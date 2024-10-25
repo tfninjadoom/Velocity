@@ -15,3 +15,8 @@ temp.log
 temp.errors
 *.ini
 .d/
+
+# LemLib
+docs_lemlib/
+src/lemlib/
+include/lemlib/
