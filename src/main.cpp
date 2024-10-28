@@ -3,6 +3,7 @@
 #include "lemlib/timer.hpp"
 
 // forward-declaring auton funcs
+void turn90();
 void redSoloAWP();
 void blueSoloAWP();
 void oldRedSoloAWP();
@@ -13,24 +14,24 @@ double vertKp = 0;
 double vertKd = 0;
 double horizKp = 0;
 double horizKd = 0;
-double thetaKp = 1.6;
+double thetaKp = 0;
 double thetaKd = 0;
 
 // controller
 pros::Controller controller(pros::E_CONTROLLER_MASTER);
 
 // motor groups
-pros::MotorGroup leftMotors({19,20},
-                            pros::MotorGearset::blue); // left motor group - ports 3 (reversed), 4, 5 (reversed)
-pros::MotorGroup rightMotors({16,17}, pros::MotorGearset::blue); // right motor group - ports 6, 7, 9 (reversed)
+pros::MotorGroup leftMotors({19,20}, pros::MotorGearset::green); // left motor group - ports 3 (reversed), 4, 5 (reversed)
+pros::MotorGroup rightMotors({16,17}, pros::MotorGearset::green); // right motor group - ports 6, 7, 9 (reversed)
 
 // Inertial Sensor on port 10
 pros::Imu imu(4);
 pros::Motor leftTop(19);
 pros::Motor leftBottom(16); 
-pros::Motor rightTop(-20);
+pros::Motor rightTop(-3);
 pros::Motor rightBottom(-17);
 pros::ADIDigitalOut clamp ('A');
+pros::ADIDigitalOut didler ('B');
 
 pros::Motor intake1(-14);
 pros::Motor intake2(-12);
@@ -42,28 +43,27 @@ void holonomicDrive(double angular, double vertical, double horizontal)
 	leftBottom.move(vertical+angular-horizontal);
 	rightBottom.move(vertical-angular+horizontal);
 	rightTop.move(vertical-angular-horizontal);
-
 }
 
 // tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 pros::Rotation horizontalEnc(-21);
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
-pros::Rotation verticalEnc(-11);
-pros::Rotation verticalEnc2(18);
+pros::Rotation verticalEnc(15);
+pros::Rotation verticalEnc2(-18);
 // horizontal tracking wheel. 2.75" diameter, 5.75" offset, back of the robot (negative)
-lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, 2.5);
+lemlib::TrackingWheel horizontal(&horizontalEnc, lemlib::Omniwheel::NEW_275, 1);
 // vertical tracking wheel. 2.75" diameter, 2.5" offset, left of the robot (negative)
-lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, 6.5);
-lemlib::TrackingWheel vertical2(&verticalEnc2, lemlib::Omniwheel::NEW_275, -6.5);
+lemlib::TrackingWheel vertical(&verticalEnc, lemlib::Omniwheel::NEW_275, 1);
+lemlib::TrackingWheel vertical2(&verticalEnc2, lemlib::Omniwheel::NEW_275, -1);
 
 // drivetrain settings
 lemlib::Drivetrain drivetrain(&leftMotors, // left motor group
                               &rightMotors, // right motor group
                               15, // 15 inch track width
-                              lemlib::Omniwheel::NEW_4, // using new 4" omnis
-                              200, // drivetrain rpm is 200
-                              5 // horizontal drift: 2 for all-omni tank drive, 8 for omni-traction tank drive, 5 is in between (x-drive)
+                              lemlib::Omniwheel::NEW_275, // using new 2.75" omnis
+                              333, // drivetrain rpm is 200
+                              5 // horizontal drift: 2 for all-omni tank drive, 8 for omni-traction tank drive
 );
 
 // vertical motion controller
@@ -124,7 +124,7 @@ void telemetry() {
         // print robot location to the brain screen
         pros::lcd::print(0, "X: %.2f", chassis.getPose().x); // x
         pros::lcd::print(1, "Y: %.2f", chassis.getPose().y); // y
-        pros::lcd::print(2, "Theta: %.2f", imu.get_heading()); // heading
+        pros::lcd::print(2, "Theta: %.2f", chassis.getPose().theta); // heading
 
         // printing PD constants
         pros::lcd::print(4, "thetaKp: %.2f", thetaKp); // thetaKp
@@ -152,6 +152,7 @@ void initialize() {
 
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(telemetry);
+    chassis.setPose(0,0,0);
 }
 
 /**
@@ -162,10 +163,7 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {
-    leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
-    rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
-}
+void competition_initialize() {}
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -205,15 +203,13 @@ void autonomous() {
     leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
     rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
 
-    // redSoloAWP();
-    //blueSoloAWP();
-    PDtune();
+    turn90();
 }
 
 void opcontrol() {
     // controller
     pros::Controller master(pros::E_CONTROLLER_MASTER);
-    bool tuningPD = true;
+    bool tuningPID = false;
 
     // loop to continuously updatePD motors
     while (true) {
@@ -267,25 +263,25 @@ void opcontrol() {
 			autonomous();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPD) {
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPID) {
 			redSoloAWP();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPD) {
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
 			blueSoloAWP();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPD) {
-			tuningPD = true;
-        } else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPD) {
-			tuningPD = false;
+        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
+			tuningPID = true;
+        } else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
+			tuningPID = false;
         }
 
-        if (tuningPD && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
+        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
             thetaKp += 0.05;
         }
 
-        if (tuningPD && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
+        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
             thetaKp -= 0.05;
         }
 
@@ -360,20 +356,23 @@ void moveTo(const double& x, const double& y, const double& theta, const int& ti
 
         if (fabs(verticalError) < 1 &&
             fabs(horizontalError) < 1 &&
-            fabs(thetaError) < 1){
+            fabs(thetaError) < 1)
+        {
             break;
         }
+
         pros::delay(20);
     }
 
     holonomicDrive(0,0,0);
 }
 
-// void moveTo1(void* x, void* y, void* theta, void* timeout) {
-//     pros::Task move_task(moveTo, (void*)x, (void*)y, (void*)theta, (int*)timeout);
-// }
-
 // PATHS
+
+void turn90() {
+    imu.set_heading(0);
+    chassis.turnToHeading(90, 2000);
+}
 
 void redSoloAWP() {
     imu.set_heading(270);
