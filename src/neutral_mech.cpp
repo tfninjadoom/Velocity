@@ -2,7 +2,9 @@
 
 namespace Neutral {
 
-pros::Rotation neutralRotation(0); //MOVE TO MAIN AND CHANGE PORT
+//MOVE TO MAIN AND CHANGE PORTS
+pros::Rotation neutralRotation(0); 
+pros::Motor    neutralMotor(0);
 
 void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
     if (resetSensor) { neutralRotation.reset_position(); }
@@ -14,7 +16,7 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
         [&]()->void {
             double currentState { (double)neutralRotation.get_position() };
             double output { neutralPID.calculate(Neutral::target, currentState) };
-
+            neutralMotor.move_voltage(output);
             pros::delay(10);
         }
     );
