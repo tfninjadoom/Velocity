@@ -17,7 +17,7 @@ enum State {
 
 namespace Neutral {
 
-Neutral::State target;
+Neutral::State target = Neutral::rest;
 
 void initPID();
 

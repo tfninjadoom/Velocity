@@ -4,8 +4,6 @@ namespace Neutral {
 
 pros::Rotation neutralRotation(0); //MOVE TO MAIN AND CHANGE PORT
 
-Neutral::State target {Neutral::rest};
-
 void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
     if (resetSensor) { neutralRotation.reset_position(); }
     
@@ -14,7 +12,7 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
 
     pros::Task neutralTask(
         [&]()->void {
-            double currentState { neutralRotation.get_position() };
+            double currentState { (double)neutralRotation.get_position() };
             double output { neutralPID.calculate(Neutral::target, currentState) };
 
             pros::delay(10);
