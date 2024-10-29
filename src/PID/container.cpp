@@ -1,22 +1,16 @@
 // container.cpp
 #include "PID/container.hpp"
 
-PID_Base::PID_Base(double Kp, double Ki, double Kd) :
-    m_Kp(Kp), m_Ki(Ki), m_Kd(Kd), m_member() //nullptr
+
+
+//---------------------------------- SimplePID ------------------------------------//
+SimplePID::SimplePID(double Kp, double Ki, double Kd) :
+    m_Kp(Kp), m_Ki(Ki), m_Kd(Kd), m_error() //nullptr
 {}
 
-double PID_Base::calculate() {
-    return (m_Kp * m_P->calculate() + m_Ki * m_I->calculate() + m_Kd * m_D->calculate());
-}
+double SimplePID::calculate(double target, double currentState) {
+    m_pastError = m_error;
+    m_error = target - currentState;
 
-PID_Derived::PID_Derived(double Kp, double Ki, double Kd, double value) :
-    PID_Base::PID_Base(Kp, Ki, Kd)
-{
-    m_P = std::make_unique<ProportionalDerived>(value);
-    m_I = std::make_unique<IntegralDerived>(value);
-    m_D = std::make_unique<DerivativeDerived>(value);
-}
-
-double PID_Derived::calculate() {
-    // do stuff with m_value and m_member
+    return (m_Kp * (m_error) + m_Ki * (m_integral += m_pastError) + m_Kd * (m_error - m_pastError));
 }
