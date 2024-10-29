@@ -7,7 +7,7 @@ pros::Rotation neutralRotation(0);
 pros::Motor    neutralMotor(0);
 
 void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
-    if (resetSensor) { neutralRotation.reset_position(); }
+    if (resetSensor) { neutralRotation.set_position(0); }
     
     double min = -9000, max = 9000; //75% of motor speed
     SimplePID neutralPID(1,0,1);

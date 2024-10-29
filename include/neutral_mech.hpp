@@ -6,11 +6,11 @@ inline namespace Neutral {
 
 enum State {
     rest = 0,
-    ring1 = 1,
-    ring2 = 2,
-    clear = 3,
-    score = 4,
-    descore = 5
+    ring1 = 2500,
+    ring2 = 3000,
+    clear = 6000,
+    score = 13500,
+    descore = 13500
 };
 
 } //inline namespace Neutral
