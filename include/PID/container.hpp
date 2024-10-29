@@ -8,6 +8,7 @@
 class PID_Base {
 
 public:
+    PID_Base(double Kp, double Ki, double Kd);
     virtual double calculate();
 
 protected:
@@ -15,8 +16,6 @@ protected:
     double m_Ki;
     double m_Kd;
     double m_member;
-
-    PID_Base(double Kp, double Ki, double Kd);
 
     std::unique_ptr<ProportionalBase>   m_P;
     std::unique_ptr<IntegralBase>       m_I;
