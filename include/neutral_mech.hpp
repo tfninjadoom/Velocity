@@ -19,6 +19,6 @@ namespace Neutral {
 
 Neutral::State target = Neutral::rest;
 
-void initPID();
+void initPID(double Kp, double Ki, double Kd, bool resetSensor=false);
 
 } //namespace Neutral
