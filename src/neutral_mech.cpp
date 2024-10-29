@@ -10,7 +10,11 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
     if (resetSensor) { neutralRotation.set_position(0); }
     
     double min = -9000, max = 9000; //75% of motor speed
-    SimplePID neutralPID(1,0,1);
+    SimplePID neutralPID(
+        0.66,
+        0.0,
+        1.0
+    );
     //PID_AntiWindup neutralPID(1,0,1,1);
 
     pros::Task neutralTask(
@@ -23,7 +27,7 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
             output = temp > max ? max : output;
 
             neutralMotor.move_voltage(output); //input range of +-12000mV
-            pros::delay(10);
+            pros::delay(20);
         }
     );
 }
