@@ -3,22 +3,22 @@
 namespace Neutral {
 
 //MOVE TO MAIN AND CHANGE PORTS
-pros::Rotation neutralRotation(0); 
-pros::Motor    neutralMotor(0);
+pros::Rotation neutralRotation { 0}; 
+pros::Motor    neutralMotor    {-0};
 
 void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
     if (resetSensor) { neutralRotation.set_position(0); }
-    
-    double min = -9000, max = 9000; //75% of motor speed
+
     SimplePID neutralPID(
-        0.66,
-        0.0,
-        1.0
+        // PID Constants
+        Kp,
+        Ki,
+        Kd
     );
-    //PID_AntiWindup neutralPID(1,0,1,1);
+    const double min = Neutral::min, max = Neutral::max;
 
     pros::Task neutralTask(
-        [&]()->void {
+        [&neutralPID, min, max]()->void {
             double currentState { (double)neutralRotation.get_position() };
             double output { neutralPID.calculate(Neutral::target, currentState) };
 
