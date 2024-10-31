@@ -30,8 +30,8 @@ pros::Motor leftTop(19);
 pros::Motor leftBottom(16); 
 pros::Motor rightTop(-3);
 pros::Motor rightBottom(-17);
-pros::ADIDigitalOut clamp ('A');
-pros::ADIDigitalOut didler ('B');
+pros::adi::DigitalOut clamp ('A');
+pros::adi::DigitalOut didler ('B');
 
 pros::Motor intake1(-14);
 pros::Motor intake2(-12);
