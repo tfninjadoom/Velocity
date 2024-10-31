@@ -19,15 +19,19 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
 
     pros::Task neutralTask(
         [&neutralPID, min, max]()->void {
-            double currentState { (double)neutralRotation.get_position() };
-            double output { neutralPID.calculate(Neutral::target, currentState) };
+            while (true) { 
+                if (paused) { pros::delay(20); continue; }
 
-            // clamps value to min & max
-            const double temp = output < min ? min : output;
-            output = temp > max ? max : output;
+                double currentState { (double)neutralRotation.get_position() };
+                double output { neutralPID.calculate(Neutral::target, currentState) };
 
-            neutralMotor.move_voltage(output); //input range of +-12000mV
-            pros::delay(20);
+                // clamps value to min & max
+                const double temp = output < min ? min : output;
+                output = temp > max ? max : output;
+
+                neutralMotor.move_voltage(output); //input range of +-12000mV
+                pros::delay(20);
+            }
         }
     );
 }
