@@ -208,29 +208,30 @@ void autonomous() {
 
 void opcontrol() {
     // controller
-    pros::Controller master(pros::E_CONTROLLER_MASTER);
+    pros::Controller controller(pros::E_CONTROLLER_MASTER);
     bool tuningPID = false;
 
     // loop to continuously updatePD motors
     while (true) {
+
 		bool r1pressed;
       	bool r2pressed;
 		bool l1pressed;
       	bool l2pressed;
 		bool apressed;
 
-		double forward = master.get_analog(ANALOG_LEFT_Y);
-	  	double turn = master.get_analog(ANALOG_RIGHT_X);
-	  	double strafe = master.get_analog(ANALOG_LEFT_X);
+		double forward = controller.get_analog(ANALOG_LEFT_Y);
+	  	double turn = controller.get_analog(ANALOG_RIGHT_X);
+	  	double strafe = controller.get_analog(ANALOG_LEFT_X);
 		holonomicDrive(turn, forward, strafe);
 
-		if      (master.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
+		if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
         {
             intake1.move(127);
 		    intake2.move(-127);
 		    intake.move(127);
         } 
-        else if (master.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
+        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
         {
 			intake1.move(-127);
 		    intake2.move(127);
@@ -244,48 +245,48 @@ void opcontrol() {
 		    intake.move(0);
 		}
 
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
+		if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
             clamp.set_value(true);
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
 		    clamp.set_value(false);
 
         }
 
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
+		if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
 			intake1.move(0);
 		    intake2.move(0);
 		    intake.move(0);
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
 			autonomous();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPID) {
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPID) {
 			redSoloAWP();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
 			blueSoloAWP();
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
 			tuningPID = true;
-        } else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
+        } else if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
 			tuningPID = false;
         }
 
-        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
+        if (tuningPID && controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
             thetaKp += 0.05;
         }
 
-        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
+        if (tuningPID && controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
             thetaKp -= 0.05;
         }
 
-        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
             imu.set_heading(0);
             chassis.setPose(0,0,0);
         }
