@@ -2,6 +2,9 @@
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
 
+// Shift Key Macro
+#define SHIFT controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)
+
 // forward-declaring auton funcs
 void turn90();
 void redSoloAWP();
