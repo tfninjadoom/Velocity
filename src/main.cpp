@@ -219,10 +219,10 @@ void opcontrol() {
       	bool l2pressed;
 		bool apressed;
 
-		double left = master.get_analog(ANALOG_LEFT_Y);
-	  	double right = master.get_analog(ANALOG_RIGHT_X);
-	  	double rightx = master.get_analog(ANALOG_LEFT_X);
-		holonomicDrive(right, left, rightx);
+		double forward = master.get_analog(ANALOG_LEFT_Y);
+	  	double turn = master.get_analog(ANALOG_RIGHT_X);
+	  	double strafe = master.get_analog(ANALOG_LEFT_X);
+		holonomicDrive(turn, forward, strafe);
 
 		if      (master.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
         {
