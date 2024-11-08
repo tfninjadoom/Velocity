@@ -1,9 +1,13 @@
 #include "main.h"
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
+#include "pros/misc.h"
 
 // Shift Key Macro
 #define SHIFT controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)
+
+// Competition Initialize?
+bool compInit = false;
 
 // forward-declaring auton funcs
 void turn90();
@@ -12,7 +16,7 @@ void blueSoloAWP();
 void oldRedSoloAWP();
 void PDtune();
 
-// PID constants
+// movement PID constants
 double vertKp = 0;
 double vertKd = 0;
 double horizKp = 0;
@@ -27,28 +31,46 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup leftMotors({19,20}, pros::MotorGearset::green); // left motor group - ports 3 (reversed), 4, 5 (reversed)
 pros::MotorGroup rightMotors({16,17}, pros::MotorGearset::green); // right motor group - ports 6, 7, 9 (reversed)
 
-// Inertial Sensor on port 10
+// imu ports
 pros::Imu imu(4);
-pros::Motor leftTop(19);
-pros::Motor leftBottom(16); 
-pros::Motor rightTop(-3);
-pros::Motor rightBottom(-17);
-pros::adi::DigitalOut clamp ('A');
-pros::adi::DigitalOut didler ('B');
 
-pros::Motor intake1(-14);
-pros::Motor intake2(-12);
+// drive ports
+pros::Motor leftFront55(11);
+pros::Motor leftFront11(12);
+pros::Motor rightFront55(13);
+pros::Motor rightFront11(14); 
+pros::Motor leftBack55(15); 
+pros::Motor leftBack11(16);
+pros::Motor rightBack55(17);
+pros::Motor rightBack11(18);
+
+// motor ports
 pros::Motor intake(8);
 
+// solenoid ports
+pros::adi::DigitalOut clamp ('A');
+pros::adi::DigitalOut didler ('B');
+pros::adi::DigitalOut hang ('C');
+
+// drive control type
 void holonomicDrive(double angular, double vertical, double horizontal)
 {
-	leftTop.move(vertical+angular+horizontal);
-	leftBottom.move(vertical+angular-horizontal);
-	rightBottom.move(vertical-angular+horizontal);
-	rightTop.move(vertical-angular-horizontal);
+	// leftTop.move(vertical+angular+horizontal);
+	// leftBottom.move(vertical+angular-horizontal);
+	// rightBottom.move(vertical-angular+horizontal);
+	// rightTop.move(vertical-angular-horizontal);
+
+    leftFront55.move( -(vertical+angular+horizontal) );
+    leftFront11.move(  (vertical+angular+horizontal) );
+    rightFront55.move(-(vertical-angular-horizontal) );
+    rightFront11.move( (vertical-angular-horizontal) );
+    leftBack55.move(  -(vertical+angular-horizontal) );
+    leftBack11.move(   (vertical+angular-horizontal) );
+    rightBack55.move( -(vertical-angular+horizontal) );
+    rightBack11.move(  (vertical-angular+horizontal) );
+
 }
 
-// tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 pros::Rotation horizontalEnc(-21);
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
@@ -156,6 +178,7 @@ void initialize() {
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(telemetry);
     chassis.setPose(0,0,0);
+    Neutral::initPID(Neutral::Kp, Neutral::Ki, Neutral::Kd);
 }
 
 /**
@@ -166,7 +189,7 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {}
+void competition_initialize() { compInit = true; }
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -210,89 +233,137 @@ void autonomous() {
 }
 
 void opcontrol() {
-    // controller
-    pros::Controller controller(pros::E_CONTROLLER_MASTER);
     bool tuningPID = false;
 
     // loop to continuously updatePD motors
     while (true) {
+        
+        // robot state
+		bool clamped = false;
+        bool hangUp = false;
+        bool didlerUp = true;
+        int intakeInUse = 0; // 0 : driver control, 1 : in use by neutralCancel Task
 
-		bool r1pressed;
-      	bool r2pressed;
-		bool l1pressed;
-      	bool l2pressed;
-		bool apressed;
+        // program state
+		bool B_Pressed;
 
 		double forward = controller.get_analog(ANALOG_LEFT_Y);
 	  	double turn = controller.get_analog(ANALOG_RIGHT_X);
 	  	double strafe = controller.get_analog(ANALOG_LEFT_X);
 		holonomicDrive(turn, forward, strafe);
 
-		if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
-        {
-            intake1.move(127);
-		    intake2.move(-127);
-		    intake.move(127);
-        } 
-        else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
-        {
-			intake1.move(-127);
-		    intake2.move(127);
-		    intake.move(-127);
+        //----------------------DRIVER CONTROLS----------------------//
 
-        } 
-        else 
-        {
-			intake1.move(0);
-		    intake2.move(0);
-		    intake.move(0);
-		}
-
-		if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-            clamp.set_value(true);
+        // Intake / Conveyor 
+        if (intakeInUse == 0) {
+            if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && !SHIFT) 
+            {
+                intake.move(127);
+            }
+            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && SHIFT) 
+            {
+                intake.move(-127);
+            }
+            else {
+                intake.move(0);
+            }
+        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+            intakeInUse = 0;
         }
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
-		    clamp.set_value(false);
-
+        // Clamp Toggle
+		if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && !SHIFT)
+        {
+            clamp.set_value(!clamped);
+            clamped = !clamped;
         }
 
-		if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
-			intake1.move(0);
-		    intake2.move(0);
-		    intake.move(0);
+        // Neutral Load Ring 1
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && SHIFT)
+        {
+            Neutral::target = ring1;
         }
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
+        // Neutral Score
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) 
+        {
+		    Neutral::target = score;
+        }
+
+        // Neutral Descore
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT)) 
+        {
+			Neutral::target = descore;
+        }
+
+        // Neutral Rest
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP)) 
+        {
+			Neutral::target = rest;
+        }
+
+
+        // Neutral Cancel
+        // Removes ring from neutral by spinning conveyor in reverse
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && SHIFT) {
+            intakeInUse = 1;
+            pros::Task neutralCancel (
+                [intakeInUse]()->void {
+                    // Task can be canceled by pressing R2
+                    if (intakeInUse == 1) intake.move(-127);
+                    if (intakeInUse == 1) pros::delay(750);
+                    if (intakeInUse == 1) intake.move(0);
+                }
+            );
+        }
+
+        // Hang Toggle
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y)) 
+        {
+            hang.set_value(!hangUp);
+            hangUp = !hangUp;
+        }
+
+        // Didler Toggle
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_X)) 
+        {
+            didler.set_value(!didlerUp);
+            didlerUp = !didlerUp;
+        }
+
+
+        //-----------------------UTILITY BUTTONS (PROG)------------------------//
+
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_A) && !compInit) { // DOES NOT WORK WHEN CONNECTED TO COMPETITION CONTROL
 			autonomous();
         }
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPID) {
-			redSoloAWP();
-        }
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT) && !tuningPID) {
+		// 	redSoloAWP();
+        // }
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
-			blueSoloAWP();
-        }
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
+		// 	blueSoloAWP();
+        // }
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
-			tuningPID = true;
-        } else if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
-			tuningPID = false;
-        }
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
+		// 	tuningPID = true;
+        // } else if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
+		// 	tuningPID = false;
+        // }
 
-        if (tuningPID && controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
-            thetaKp += 0.05;
-        }
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) && tuningPID) {
+        //     thetaKp += 0.05;
+        // }
 
-        if (tuningPID && controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
-            thetaKp -= 0.05;
-        }
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) && tuningPID && B_Pressed ) {
+        //     thetaKp -= 0.05;
+        // }
 
-        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
-            imu.set_heading(0);
-            chassis.setPose(0,0,0);
-        }
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+        //     imu.set_heading(0);
+        //     chassis.setPose(0,0,0);
+        // }
 
 		pros::delay(20);                             
 	}
@@ -302,11 +373,6 @@ void opcontrol() {
 //------------------------------------------ AUTONS ------------------------------------------------------//
 
 // UTILS
-
-void conveyor(int speed){
-    intake1.move(-speed);
-    intake2.move(speed);
-}
 
 double updatePD(double Kp, double Kd, double error, double prevError) {
     return Kp*error + Kd*(error - prevError);
