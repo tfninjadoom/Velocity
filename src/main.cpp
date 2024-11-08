@@ -337,11 +337,31 @@ void opcontrol() {
             didlerUp = !didlerUp;
         }
 
+        /** Neutral Emergency Stick Control
+         * 
+         *      Turns on when you start holding DOWN
+         *      Joystick functions while DOWN is held
+         *      Control returned to task after pressing Shift+DOWN
+         */
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        {
+            // only works when holding DOWN
+            neutralMotor.move( controller.get_analog(ANALOG_LEFT_Y) ); 
+        }
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        {
+            Neutral::emergencyControl = true; // taking neutral controls from task
+        }
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && SHIFT) 
+        {
+            Neutral::emergencyControl = false; // returning neutral controls to task
+        }
 
         //-----------------------UTILITY BUTTONS (PROG)------------------------//
 
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_A) && !compInit) { // DOES NOT WORK WHEN CONNECTED TO COMPETITION CONTROL
-			autonomous();
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_A) && !compInit) // DOES NOT WORK WHEN CONNECTED TO COMPETITION CONTROL
+		{
+            autonomous();
         }
 
         // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT) && !tuningPID) {
