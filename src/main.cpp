@@ -285,17 +285,17 @@ void opcontrol() {
         }
 
         // Neutral Score
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) 
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2) && !SHIFT) 
         {
 		    Neutral::target = score;
         }
 
         // Neutral Descore
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT)) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && !SHIFT) 
         {
 			Neutral::target = descore;
         }
-        
+
         // Neutral Clear
         if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && SHIFT) 
         {
@@ -303,7 +303,7 @@ void opcontrol() {
         }
 
         // Neutral Rest
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP)) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !SHIFT) 
         {
 			Neutral::target = rest;
         }
