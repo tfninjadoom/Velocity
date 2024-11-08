@@ -20,7 +20,7 @@ void initPID(double Kp, double Ki, double Kd, bool resetSensor) {
     pros::Task neutralTask(
         [&neutralPID, min, max]()->void {
             while (true) { 
-                if (paused) { pros::delay(20); continue; }
+                if (paused || Neutral::emergencyControl) { pros::delay(30); continue; }
 
                 double currentState { (double)neutralRotation.get_position() };
                 double output { neutralPID.calculate(Neutral::target, currentState) };

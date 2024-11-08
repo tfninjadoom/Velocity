@@ -33,6 +33,7 @@ extern pros::Motor    neutralMotor;
 
 Neutral::State target = Neutral::rest;
 bool paused = false;
+bool emergencyControl = false;
 
 void initPID(double Kp, double Ki, double Kd, bool resetSensor=false);
 
