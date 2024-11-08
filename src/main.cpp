@@ -295,6 +295,12 @@ void opcontrol() {
         {
 			Neutral::target = descore;
         }
+        
+        // Neutral Clear
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && SHIFT) 
+        {
+            Neutral::target = clear;
+        }
 
         // Neutral Rest
         if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP)) 
