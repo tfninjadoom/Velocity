@@ -1,6 +1,13 @@
 #include "main.h"
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
+#include "pros/misc.h"
+
+// Shift Key Macro
+#define SHIFT controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)
+
+// Competition Initialize?
+bool compInit = false;
 
 // forward-declaring auton funcs
 void turn90();
@@ -9,7 +16,7 @@ void blueSoloAWP();
 void oldRedSoloAWP();
 void PDtune();
 
-// PID constants
+// movement PID constants
 double vertKp = 0;
 double vertKd = 0;
 double horizKp = 0;
@@ -24,28 +31,46 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup leftMotors({19,20}, pros::MotorGearset::green); // left motor group - ports 3 (reversed), 4, 5 (reversed)
 pros::MotorGroup rightMotors({16,17}, pros::MotorGearset::green); // right motor group - ports 6, 7, 9 (reversed)
 
-// Inertial Sensor on port 10
+// imu ports
 pros::Imu imu(4);
-pros::Motor leftTop(19);
-pros::Motor leftBottom(16); 
-pros::Motor rightTop(-3);
-pros::Motor rightBottom(-17);
-pros::ADIDigitalOut clamp ('A');
-pros::ADIDigitalOut didler ('B');
 
-pros::Motor intake1(-14);
-pros::Motor intake2(-12);
+// drive ports
+pros::Motor leftFront55(11);
+pros::Motor leftFront11(12);
+pros::Motor rightFront55(13);
+pros::Motor rightFront11(14); 
+pros::Motor leftBack55(15); 
+pros::Motor leftBack11(16);
+pros::Motor rightBack55(17);
+pros::Motor rightBack11(18);
+
+// motor ports
 pros::Motor intake(8);
 
+// solenoid ports
+pros::adi::DigitalOut clamp ('A');
+pros::adi::DigitalOut didler ('B');
+pros::adi::DigitalOut hang ('C');
+
+// drive control type
 void holonomicDrive(double angular, double vertical, double horizontal)
 {
-	leftTop.move(vertical+angular+horizontal);
-	leftBottom.move(vertical+angular-horizontal);
-	rightBottom.move(vertical-angular+horizontal);
-	rightTop.move(vertical-angular-horizontal);
+	// leftTop.move(vertical+angular+horizontal);
+	// leftBottom.move(vertical+angular-horizontal);
+	// rightBottom.move(vertical-angular+horizontal);
+	// rightTop.move(vertical-angular-horizontal);
+
+    leftFront55.move( -(vertical+angular+horizontal) );
+    leftFront11.move(  (vertical+angular+horizontal) );
+    rightFront55.move(-(vertical-angular-horizontal) );
+    rightFront11.move( (vertical-angular-horizontal) );
+    leftBack55.move(  -(vertical+angular-horizontal) );
+    leftBack11.move(   (vertical+angular-horizontal) );
+    rightBack55.move( -(vertical-angular+horizontal) );
+    rightBack11.move(  (vertical-angular+horizontal) );
+
 }
 
-// tracking wheels
 // horizontal tracking wheel encoder. Rotation sensor, port 20, not reversed
 pros::Rotation horizontalEnc(-21);
 // vertical tracking wheel encoder. Rotation sensor, port 11, reversed
@@ -153,6 +178,7 @@ void initialize() {
     // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
     pros::Task screenTask(telemetry);
     chassis.setPose(0,0,0);
+    Neutral::initPID(Neutral::Kp, Neutral::Ki, Neutral::Kd);
 }
 
 /**
@@ -163,7 +189,7 @@ void disabled() {}
 /**
  * runs after initialize if the robot is connected to field control
  */
-void competition_initialize() {}
+void competition_initialize() { compInit = true; }
 
 // get a path used for pure pursuit
 // this needs to be put outside a function
@@ -207,88 +233,163 @@ void autonomous() {
 }
 
 void opcontrol() {
-    // controller
-    pros::Controller master(pros::E_CONTROLLER_MASTER);
     bool tuningPID = false;
 
     // loop to continuously updatePD motors
     while (true) {
-		bool r1pressed;
-      	bool r2pressed;
-		bool l1pressed;
-      	bool l2pressed;
-		bool apressed;
+        
+        // robot state
+		bool clamped = false;
+        bool hangUp = false;
+        bool didlerUp = true;
+        int intakeInUse = 0; // 0 : driver control, 1 : in use by neutralCancel Task
 
-		double left = master.get_analog(ANALOG_LEFT_Y);
-	  	double right = master.get_analog(ANALOG_RIGHT_X);
-	  	double rightx = master.get_analog(ANALOG_LEFT_X);
-		holonomicDrive(right, left, rightx);
+        // program state
+		bool B_Pressed;
 
-		if      (master.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
+		double forward = controller.get_analog(ANALOG_LEFT_Y);
+	  	double turn = controller.get_analog(ANALOG_RIGHT_X);
+	  	double strafe = controller.get_analog(ANALOG_LEFT_X);
+		holonomicDrive(turn, forward, strafe);
+
+        //----------------------DRIVER CONTROLS----------------------//
+
+        // Intake / Conveyor 
+        if (intakeInUse == 0) {
+            if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && !SHIFT) 
+            {
+                intake.move(127);
+            }
+            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && SHIFT) 
+            {
+                intake.move(-127);
+            }
+            else {
+                intake.move(0);
+            }
+        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+            intakeInUse = 0;
+        }
+
+        // Clamp Toggle
+		if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && !SHIFT)
         {
-            intake1.move(127);
-		    intake2.move(-127);
-		    intake.move(127);
-        } 
-        else if (master.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
+            clamp.set_value(!clamped);
+            clamped = !clamped;
+        }
+
+        // Neutral Load Ring 1
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && SHIFT)
         {
-			intake1.move(-127);
-		    intake2.move(127);
-		    intake.move(-127);
+            Neutral::target = ring1;
+        }
 
-        } 
-        else 
+        // Neutral Score
+        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2) && !SHIFT) 
         {
-			intake1.move(0);
-		    intake2.move(0);
-		    intake.move(0);
-		}
-
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L1)) {
-            clamp.set_value(true);
+		    Neutral::target = score;
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_L2)) {
-		    clamp.set_value(false);
-
+        // Neutral Descore
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && !SHIFT) 
+        {
+			Neutral::target = descore;
         }
 
-		if(master.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
-			intake1.move(0);
-		    intake2.move(0);
-		    intake.move(0);
+        // Neutral Clear
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && SHIFT) 
+        {
+            Neutral::target = clear;
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
-			autonomous();
+        // Neutral Rest
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !SHIFT) 
+        {
+			Neutral::target = rest;
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !tuningPID) {
-			redSoloAWP();
+
+        // Neutral Cancel
+        // Removes ring from neutral by spinning conveyor in reverse
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && SHIFT) {
+            intakeInUse = 1;
+            pros::Task neutralCancel (
+                [intakeInUse]()->void {
+                    // Task can be canceled by pressing R2
+                    if (intakeInUse == 1) intake.move(-127);
+                    if (intakeInUse == 1) pros::delay(750);
+                    if (intakeInUse == 1) intake.move(0);
+                }
+            );
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
-			blueSoloAWP();
+        // Hang Toggle
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y)) 
+        {
+            hang.set_value(!hangUp);
+            hangUp = !hangUp;
         }
 
-        if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
-			tuningPID = true;
-        } else if(master.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
-			tuningPID = false;
+        // Didler Toggle
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_X)) 
+        {
+            didler.set_value(!didlerUp);
+            didlerUp = !didlerUp;
         }
 
-        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT) ) {
-            thetaKp += 0.05;
+        /** Neutral Emergency Stick Control
+         * 
+         *      Turns on when you start holding DOWN
+         *      Joystick functions while DOWN is held
+         *      Control returned to task after pressing Shift+DOWN
+         */
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        {
+            // only works when holding DOWN
+            neutralMotor.move( controller.get_analog(ANALOG_LEFT_Y) ); 
+        }
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        {
+            Neutral::emergencyControl = true; // taking neutral controls from task
+        }
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && SHIFT) 
+        {
+            Neutral::emergencyControl = false; // returning neutral controls to task
         }
 
-        if (tuningPID && master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) ) {
-            thetaKp -= 0.05;
+        //-----------------------UTILITY BUTTONS (PROG)------------------------//
+
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_A) && !compInit) // DOES NOT WORK WHEN CONNECTED TO COMPETITION CONTROL
+		{
+            autonomous();
         }
 
-        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
-            imu.set_heading(0);
-            chassis.setPose(0,0,0);
-        }
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT) && !tuningPID) {
+		// 	redSoloAWP();
+        // }
+
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !tuningPID) {
+		// 	blueSoloAWP();
+        // }
+
+        // if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && !tuningPID) {
+		// 	tuningPID = true;
+        // } else if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y) && tuningPID) {
+		// 	tuningPID = false;
+        // }
+
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) && tuningPID) {
+        //     thetaKp += 0.05;
+        // }
+
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_LEFT) && tuningPID && B_Pressed ) {
+        //     thetaKp -= 0.05;
+        // }
+
+        // if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+        //     imu.set_heading(0);
+        //     chassis.setPose(0,0,0);
+        // }
 
 		pros::delay(20);                             
 	}
@@ -298,11 +399,6 @@ void opcontrol() {
 //------------------------------------------ AUTONS ------------------------------------------------------//
 
 // UTILS
-
-void conveyor(int speed){
-    intake1.move(-speed);
-    intake2.move(speed);
-}
 
 double updatePD(double Kp, double Kd, double error, double prevError) {
     return Kp*error + Kd*(error - prevError);
@@ -369,55 +465,4 @@ void moveTo(const double& x, const double& y, const double& theta, const int& ti
 
 // PATHS
 
-void turn90() {
-    imu.set_heading(0);
-    chassis.turnToHeading(90, 2000);
-}
-
-void redSoloAWP() {
-    imu.set_heading(270);
-    chassis.setPose(-120, 59.75, 270);
-    clamp.set_value(false);
-
-    moveTo(-104, 60, 270, 1500);
-    clamp.set_value(true);
-}
-
-void blueSoloAWP() {
-    imu.set_heading(0);
-    chassis.setPose(0, 0, 0);
-}
-
-void oldRedSoloAWP() {
-    clamp.set_value(1);
-    moveTo(0,-18,0,1800);
-    clamp.set_value(0);
-    pros::delay(200);
-    conveyor(127);
-    pros::delay(800);
-    conveyor(0);
-    moveTo(10,-23,90,1500);
-    clamp.set_value(1);
-    intake.move(-127); // intake
-    conveyor(127);
-    moveTo(17.5,-23,90,1500);
-    pros::delay(500);
-    conveyor(0);
-    pros::delay(200);
-    intake.move(127);
-    clamp.set_value(1);
-    moveTo(0,0,135,3000);
-    moveTo(24,48,90,3000);
-    moveTo(0,24,0,30000);
-    moveTo(0,0,0,300000);
-    moveTo(0,24,0,30000);
-    moveTo(0,-24,90,30000);
-    moveTo(0,0,0,30000);
-}
-
-void PDtune() {
-    imu.set_heading(0);
-    chassis.setPose(0,0,0);
-    pros::delay(20);
-    moveTo(0, 0, 90, 5000);
-}
+//empty
