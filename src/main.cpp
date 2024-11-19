@@ -62,14 +62,14 @@ void holonomicDrive(double angular, double vertical, double horizontal)
 	// rightBottom.move(vertical-angular+horizontal);
 	// rightTop.move(vertical-angular-horizontal);
 
-    leftFront55.move( -(vertical+angular+horizontal) );
-    leftFront11.move(  (vertical+angular+horizontal) );
-    rightFront55.move(-(vertical-angular-horizontal) );
-    rightFront11.move( (vertical-angular-horizontal) );
-    leftBack55.move(  -(vertical+angular-horizontal) );
-    leftBack11.move(   (vertical+angular-horizontal) );
-    rightBack55.move( -(vertical-angular+horizontal) );
-    rightBack11.move(  (vertical-angular+horizontal) );
+    leftFront55.move( -(angular+vertical+horizontal) );
+    leftFront11.move(  (angular+vertical+horizontal) );
+    rightFront55.move(-(angular-vertical+horizontal) );
+    rightFront11.move( (angular-vertical+horizontal) );
+    leftBack55.move(  -(angular+vertical-horizontal) );
+    leftBack11.move(   (angular+vertical-horizontal) );
+    rightBack55.move( -(angular-vertical-horizontal) );
+    rightBack11.move(  (angular-vertical-horizontal) );
 
 }
 
@@ -165,23 +165,8 @@ void telemetry() {
          
     }
 }
-void initialize() {
-    imu.reset();
-    chassis.calibrate(); // calibrate sensors
-    if (!pros::lcd::is_initialized()) pros::lcd::initialize();
-    // the default rate is 50. however, if you need to change the rate, you
-    // can do the following.
-    // lemlib::bufferedStdout().setRate(...);
-    // If you use bluetooth or a wired connection, you will want to have a rate of 10ms
 
-    // for more information on how the formatting for the loggers
-    // works, refer to the fmtlib docs
-
-    // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
-    pros::Task screenTask(telemetry);
-    chassis.setPose(0,0,0);
-    Neutral::initPID(Neutral::Kp, Neutral::Ki, Neutral::Kd);
-
+void colorSorterInit() {
     bool blue = false;
     pros::Task colorSorter { 
         [blue] () -> void {
@@ -209,6 +194,27 @@ void initialize() {
             }
         }
     };
+}
+
+
+void initialize() {
+    imu.reset();
+    chassis.calibrate(); // calibrate sensors
+    if (!pros::lcd::is_initialized()) pros::lcd::initialize();
+    // the default rate is 50. however, if you need to change the rate, you
+    // can do the following.
+    // lemlib::bufferedStdout().setRate(...);
+    // If you use bluetooth or a wired connection, you will want to have a rate of 10ms
+
+    // for more information on how the formatting for the loggers
+    // works, refer to the fmtlib docs
+
+    // thread to for brain screen and position logging distance(x,y,chassis.getPose().x,chassis.getPose().y)>2.5
+    pros::Task screenTask(telemetry);
+    chassis.setPose(0,0,0);
+    Neutral::initPID(Neutral::Kp, Neutral::Ki, Neutral::Kd);
+
+    colorSorterInit();
 
 }
 
