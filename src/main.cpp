@@ -2,9 +2,10 @@
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
 #include "pros/misc.h"
+#include "pros/optical.hpp"
 
 // Shift Key Macro
-#define SHIFT controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)
+//#define SHIFT controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)
 
 // Competition Initialize?
 bool compInit = false;
@@ -31,8 +32,9 @@ pros::Controller controller(pros::E_CONTROLLER_MASTER);
 pros::MotorGroup leftMotors({19,20}, pros::MotorGearset::green); // left motor group - ports 3 (reversed), 4, 5 (reversed)
 pros::MotorGroup rightMotors({16,17}, pros::MotorGearset::green); // right motor group - ports 6, 7, 9 (reversed)
 
-// imu ports
+// sensor ports
 pros::Imu imu(4);
+pros::Optical optical(21);
 
 // drive ports
 pros::Motor leftFront55(11);
@@ -179,6 +181,35 @@ void initialize() {
     pros::Task screenTask(telemetry);
     chassis.setPose(0,0,0);
     Neutral::initPID(Neutral::Kp, Neutral::Ki, Neutral::Kd);
+
+    bool blue = false;
+    pros::Task colorSorter { 
+        [blue] () -> void {
+            // hue values are from 0 to 359.999
+            double redLow = 320.;
+            double redHigh = 100.; 
+            double blueLow = 210.;
+            double blueHigh = 280.;
+            
+            auto stallConveyor = []() -> void {
+                pros::delay(50);
+                double prevVoltage = intake.get_voltage();
+                intake.move(0);
+                pros::delay(100);
+                intake.move_voltage(prevVoltage);
+            };
+
+            while (true) {
+                if (blue) {
+                    if (optical.get_hue() > blueLow && optical.get_hue() < blueHigh) { stallConveyor(); }
+                } else {
+                    if (optical.get_hue() > redLow || optical.get_hue() < redHigh)   { stallConveyor(); }
+                }
+                pros::delay(10);
+            }
+        }
+    };
+
 }
 
 /**
@@ -239,8 +270,6 @@ void opcontrol() {
     while (true) {
         
         // robot state
-		bool clamped = false;
-        bool hangUp = false;
         bool didlerUp = true;
         int intakeInUse = 0; // 0 : driver control, 1 : in use by neutralCancel Task
 
@@ -256,66 +285,73 @@ void opcontrol() {
 
         // Intake / Conveyor 
         if (intakeInUse == 0) {
-            if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && !SHIFT) 
+            if      (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R1)) 
             {
                 intake.move(127);
             }
-            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2) && SHIFT) 
+            else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) 
             {
                 intake.move(-127);
             }
             else {
                 intake.move(0);
             }
-        } else if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_R2)) {
+        } else if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_R1) || 
+                   controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_R2)) 
+        {
             intakeInUse = 0;
         }
 
-        // Clamp Toggle
-		if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && !SHIFT)
+        // Clamp
+		if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1))
         {
-            clamp.set_value(!clamped);
-            clamped = !clamped;
+            clamp.set_value(true);
+        }
+		if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L2))
+        {
+            clamp.set_value(false);
         }
 
         // Neutral Load Ring 1
-        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1) && SHIFT)
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP))
         {
             Neutral::target = ring1;
         }
 
         // Neutral Score
-        if(controller.get_digital(pros::E_CONTROLLER_DIGITAL_L2) && !SHIFT) 
+        // Neutral Rest on Second Press
+        if(controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)
+           && Neutral::target != score ) 
         {
 		    Neutral::target = score;
         }
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X)
+            && Neutral::target == score ) 
+        {
+			Neutral::target = rest;
+        }
 
         // Neutral Descore
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && !SHIFT) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT) ) 
         {
 			Neutral::target = descore;
         }
 
         // Neutral Clear
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_RIGHT) && SHIFT) 
+        // Deploys HANG
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y)) 
         {
             Neutral::target = clear;
-        }
-
-        // Neutral Rest
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && !SHIFT) 
-        {
-			Neutral::target = rest;
         }
 
 
         // Neutral Cancel
         // Removes ring from neutral by spinning conveyor in reverse
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_UP) && SHIFT) {
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT)) {
             intakeInUse = 1;
             pros::Task neutralCancel (
                 [intakeInUse]()->void {
-                    // Task can be canceled by pressing R2
+                    // Task can be canceled by pressing R1/R2
                     if (intakeInUse == 1) intake.move(-127);
                     if (intakeInUse == 1) pros::delay(750);
                     if (intakeInUse == 1) intake.move(0);
@@ -323,15 +359,8 @@ void opcontrol() {
             );
         }
 
-        // Hang Toggle
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_Y)) 
-        {
-            hang.set_value(!hangUp);
-            hangUp = !hangUp;
-        }
-
         // Didler Toggle
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_X)) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_B)) 
         {
             didler.set_value(!didlerUp);
             didlerUp = !didlerUp;
@@ -343,16 +372,16 @@ void opcontrol() {
          *      Joystick functions while DOWN is held
          *      Control returned to task after pressing Shift+DOWN
          */
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN)) 
         {
             // only works when holding DOWN
             neutralMotor.move( controller.get_analog(ANALOG_LEFT_Y) ); 
         }
-        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN) && !SHIFT) 
+        if (controller.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN)) 
         {
             Neutral::emergencyControl = true; // taking neutral controls from task
         }
-        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) && SHIFT) 
+        if (controller.get_digital(pros::E_CONTROLLER_DIGITAL_DOWN) == false) 
         {
             Neutral::emergencyControl = false; // returning neutral controls to task
         }
