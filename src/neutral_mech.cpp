@@ -2,6 +2,10 @@
 
 namespace Neutral {
 
+Neutral::State target = Neutral::rest;
+bool paused = false;
+bool emergencyControl = false;
+
 //MOVE TO MAIN AND CHANGE PORTS
 pros::Rotation neutralRotation { 0}; 
 pros::Motor    neutralMotor    {-0};

@@ -31,9 +31,9 @@ const double min = -9000, max = 9000;
 extern pros::Rotation neutralRotation;
 extern pros::Motor    neutralMotor;
 
-Neutral::State target = Neutral::rest;
-bool paused = false;
-bool emergencyControl = false;
+extern Neutral::State target;
+extern bool paused;
+extern bool emergencyControl;
 
 void initPID(double Kp, double Ki, double Kd, bool resetSensor=false);
 
