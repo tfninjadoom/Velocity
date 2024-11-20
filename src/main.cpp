@@ -1,6 +1,7 @@
 #include "main.h"
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/timer.hpp"
+#include "neutral_mech.hpp"
 #include "pros/misc.h"
 #include "pros/optical.hpp"
 
@@ -10,7 +11,7 @@
 // Competition Initialize?
 bool compInit = false;
 
-// forward-declaring auton funcs
+// forward-declarations
 void turn90();
 void redSoloAWP();
 void blueSoloAWP();
@@ -266,7 +267,6 @@ void autonomous() {
     leftMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
     rightMotors.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
 
-    turn90();
 }
 
 void opcontrol() {
